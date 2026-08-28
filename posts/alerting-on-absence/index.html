@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The alert that could not fire</title>
+<meta name="description" content="A threshold alert on a metric that stops being reported never fires. Pairing every freshness rule with absent(), and proving the threshold really is silent.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/alerting-on-absence/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="The alert that could not fire">
+<meta property="og:description" content="A threshold alert on a metric that stops being reported never fires. Pairing every freshness rule with absent(), and proving the threshold really is silent.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/alerting-on-absence/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The alert that could not fire">
+<meta name="twitter:description" content="A threshold alert on a metric that stops being reported never fires. Pairing every freshness rule with absent(), and proving the threshold really is silent.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Monitoring &middot; Prometheus</p>
+    <p class="hero-log">time() - snapshot_last_success &gt; 7200</p>
+    <p class="hero-gloss">This alert cannot fire when backups stop.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>The alert that could not fire</h1>
+
+    <p class="standfirst">Every failure this system produced looked like
+    success from the outside. The graphs did not go red — they had one fewer
+    line than they should have, and nobody counts lines.</p>
+
+    <p>Here is an alert rule. Read it and decide whether it does what it
+    says.</p>
+
+    <figure>
+      <figcaption>docker/monitoring/rules/vault.yml</figcaption>
+      <pre><code>- alert: VaultSnapshotStale
+  expr: time() - vault_snapshot_last_success_timestamp_seconds &gt; 7200</code></pre>
+    </figure>
+
+    <p>"Alert if the last successful snapshot was more than two hours ago."
+    That is what it looks like. It is not what it does.</p>
+
+    <p>If snapshots stop entirely — the timer breaks, the script exits early,
+    the pushgateway becomes unreachable — then nothing reports
+    <code>vault_snapshot_last_success_timestamp_seconds</code> any more. The
+    expression has no series to evaluate. It produces an empty result, and
+    Prometheus treats an empty result as <em>nothing to alert on</em>.</p>
+
+    <p class="thesis">The alert is silent in exactly the situation it was
+    written for.</p>
+
+    <p>Not delayed. Not noisy. Silent. A rule that fires when backups are
+    stale and goes quiet when backups stop is worse than no rule, because it
+    comes with a feeling of coverage.</p>
+
+    <h2>How I found out</h2>
+
+    <p>I had three green systemd timers and zero backups, for weeks. The
+    leadership check in the snapshot script read a field that does not exist
+    in <code>vault status -format=json</code>, so every node concluded it was
+    not the leader and skipped its turn. I have
+    <a href="/posts/three-green-timers/">written that one up separately</a>;
+    the short version is that the failure was completely invisible.</p>
+
+    <p>What stuck with me afterwards was not the bug. It was the realisation
+    that I had <em>had</em> a staleness alert the whole time, and it had never
+    been in a position to fire.</p>
+
+    <p>Once I went looking, the pattern was everywhere in this repository.
+    Every significant failure it has produced looked like success from the
+    outside:</p>
+
+    <ul>
+      <li>Snapshots were never taken on any node, for weeks, with three green
+      timers.</li>
+      <li>A certificate reload failed and Vault kept serving the old
+      certificate, while the reload command exited 0.</li>
+      <li>A hostname check accepted every certificate it was given, because
+      <code>openssl</code> reports that particular result in its output rather
+      than its exit code.</li>
+    </ul>
+
+    <p>None of those would have been caught by a dashboard. Nothing was wrong
+    on screen. The graph simply had one fewer line than it should have, and a
+    missing line does not draw attention to itself the way a spike does.</p>
+
+    <h2>Absence is a different failure mode</h2>
+
+    <p>Monitoring is mostly built around thresholds: something got too big,
+    too slow, too old. Thresholds all share a hidden precondition — that the
+    thing is still reporting.</p>
+
+    <p>That precondition is invisible in the rule. Nothing in
+    <code>time() - metric &gt; 7200</code> tells you it depends on
+    <code>metric</code> existing. You have to already know.</p>
+
+    <p>And the precondition fails in precisely the circumstances you care
+    about. A metric stops being reported when the exporter dies, the job is
+    misconfigured, the scrape target list is empty, the push never happens, or
+    the thing being measured stopped happening at all. Those are not edge
+    cases. Several of them <em>are</em> the outage.</p>
+
+    <h2>The fix is boring, which is the point</h2>
+
+    <p>Prometheus has <code>absent()</code>. It returns a value when a series
+    does not exist, so it fires on the case the threshold cannot see:</p>
+
+    <figure>
+      <pre><code>- alert: VaultSnapshotMetricMissing
+  expr: absent(vault_snapshot_last_success_timestamp_seconds)
+  for: 2m
+  annotations:
+    description: &gt;-
+      No snapshot has ever been recorded, or the pushgateway is
+      unreachable. VaultSnapshotStale cannot fire while this is true,
+      because it has no series to evaluate.</code></pre>
+    </figure>
+
+    <p>Nothing clever. The interesting part is not the function; it is
+    treating <strong>the pair as the unit</strong>. A freshness alert without
+    its absence partner is not a smaller amount of coverage — it is a false
+    report of coverage, which is worse than a gap you know about.</p>
+
+    <h2>Proving the threshold really is silent</h2>
+
+    <p>It is easy to write both alerts and <em>assume</em> the split works. I
+    wanted the claim tested, because the whole point is that the failure is
+    invisible.</p>
+
+    <p><code>promtool</code> can feed a synthetic series to a rule file and
+    assert which alerts fire. It also understands <code>stale</code>, which
+    makes a series stop existing rather than merely go to zero — exactly the
+    case in question:</p>
+
+    <figure>
+      <figcaption>tests/alerting/vault_test.yml</figcaption>
+      <pre><code>- name: snapshots stopping entirely is caught by absent, not by staleness
+  interval: 15s
+  input_series:
+  - series: vault_snapshot_last_success_timestamp_seconds{instance="vault-0"}
+    values: 0+0x4 stale
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: VaultSnapshotStale
+    exp_alerts: []          # &lt;- the threshold alert does NOT fire
+  - eval_time: 5m
+    alertname: VaultSnapshotMetricMissing
+    exp_alerts:
+    - exp_labels:
+        severity: critical</code></pre>
+    </figure>
+
+    <p>The load-bearing line is <code>exp_alerts: []</code>. The test asserts
+    that <code>VaultSnapshotStale</code> <strong>stays quiet</strong> when
+    snapshots stop. If someone later "fixes" the rules so the threshold alert
+    covers this case, that assertion fails and the split gets re-examined
+    rather than silently abandoned.</p>
+
+    <p>A second case covers the other half: a snapshot that is merely old,
+    where the series still exists, fires <code>VaultSnapshotStale</code> and
+    not the absence alert. Two rules, two behaviours, both pinned.</p>
+
+    <h2>Making the rule survive the next contributor</h2>
+
+    <p>Testing the pairs I wrote does nothing about the pair somebody adds
+    next year. So there is a structural check over the rule file itself:</p>
+
+    <figure>
+      <figcaption>tests/alerting/run-tests.sh</figcaption>
+      <pre><code>for name, r in alerts.items():
+    expr = r["expr"]
+    if "time()" in expr and not expr.strip().startswith("absent("):
+        metrics = [...]                     # metric names in the expression
+        if not any(m in guarded for m in metrics):
+            failures.append(f"{name}: freshness check with no absent() guard")</code></pre>
+    </figure>
+
+    <p>Any rule doing freshness arithmetic on a metric that no
+    <code>absent()</code> alert guards fails CI. The same pass requires every
+    alert to carry a <code>severity</code> label, a <code>summary</code>, and
+    a <code>runbook</code> annotation — because an alert nobody knows how to
+    action is its own kind of absence.</p>
+
+    <p>This is the part I would keep if I kept only one thing. The insight is
+    cheap and easy to agree with; it is worthless the first time somebody adds
+    a rule at 2am without having read this file. An invariant enforced in CI
+    outlives the person who understood it.</p>
+
+    <h2>It keeps happening</h2>
+
+    <p>Recently I migrated the cluster's TLS certificates from a bootstrap CA
+    to Vault's own PKI. The final step drops the old CA from the trust
+    bundle.</p>
+
+    <p>Prometheus and the blackbox exporter both mount that same bundle to
+    verify the nodes they scrape. They read it once, at startup. After the
+    migration they were validating against a CA that no longer signs anything,
+    so the TLS probe failed and
+    <code>probe_ssl_earliest_cert_expiry</code> stopped being reported.</p>
+
+    <p>Certificate expiry monitoring was gone. No error, no red panel — the
+    series just stopped. And the thing that caught it was the absence alert
+    written after the snapshot incident, firing in a case I had not thought of
+    when I wrote it.</p>
+
+    <p>That is the argument, really. Thresholds catch the failures you
+    anticipated. Absence catches a whole category at once, including the ones
+    you have not imagined yet, because "this stopped reporting" is the shape
+    almost every silent failure eventually takes.</p>
+
+    <h2>What to do on Monday</h2>
+
+    <p>Go through your alert rules and find every expression that does
+    arithmetic on a metric — freshness, ratios, error rates. For each one,
+    ask: <em>if this metric stopped being reported entirely, would anything
+    fire?</em></p>
+
+    <p>Where the answer is no, you have an alert that cannot fire in its own
+    worst case. Pair it with <code>absent()</code>, then write a test that
+    asserts the threshold rule stays quiet — otherwise you have only moved the
+    assumption, not removed it.</p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>The rules are in
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>,
+    at
+    <a href="https://github.com/sethbergman/vault-reference-platform/blob/main/docker/monitoring/rules/vault.yml"><code>docker/monitoring/rules/vault.yml</code></a>,
+    with the tests in
+    <a href="https://github.com/sethbergman/vault-reference-platform/tree/main/tests/alerting"><code>tests/alerting/</code></a>.</p>
+  </footer>
+
+</article>
+</body>
+</html>
