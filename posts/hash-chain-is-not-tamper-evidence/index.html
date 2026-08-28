@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A hash chain is not tamper evidence</title>
+<meta name="description" content="A hash chain stops whoever cannot recompute it. Whoever can — which is whoever could edit the log — rewrites it and it verifies perfectly. What actually breaks that, and how to test it.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/hash-chain-is-not-tamper-evidence/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="A hash chain is not tamper evidence">
+<meta property="og:description" content="A hash chain stops whoever cannot recompute it. Whoever can — which is whoever could edit the log — rewrites it and it verifies perfectly. What actually breaks that, and how to test it.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/hash-chain-is-not-tamper-evidence/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A hash chain is not tamper evidence">
+<meta name="twitter:description" content="A hash chain stops whoever cannot recompute it. Whoever can — which is whoever could edit the log — rewrites it and it verifies perfectly. What actually breaks that, and how to test it.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Security &middot; Audit integrity</p>
+    <p class="hero-log">chain intact <span class="flag">&mdash; and completely false</span></p>
+    <p class="hero-gloss">Verification passes on a forged trail.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>A hash chain is not tamper evidence</h1>
+
+    <p class="standfirst">It stops the person who cannot recompute it.
+    Whoever can — which is whoever could edit the log in the first place —
+    is unaffected, and the result verifies perfectly.</p>
+
+    <p>The obvious way to protect an audit log is to hash-chain it. Each
+    entry carries the hash of the entry before, so altering anything
+    downstream breaks every link after it:</p>
+
+    <figure>
+      <pre><code>&lt;seq&gt; &lt;sha256(entry)&gt; &lt;sha256(previous_chain_hash + entry_hash)&gt;</code></pre>
+    </figure>
+
+    <p>I built exactly this for a Vault cluster's audit trail. It is
+    genuinely useful, and I want to be clear about what it buys before
+    explaining why I did not stop there.</p>
+
+    <h2>What chaining actually buys</h2>
+
+    <p>Real things, all of them worth having:</p>
+
+    <ul>
+      <li><strong>Corruption is visible.</strong> A truncated write, a bad
+      disk, a shipper that dropped a line — the chain diverges at a specific
+      sequence number and you know where.</li>
+      <li><strong>Careless tampering is visible.</strong> Someone deletes the
+      lines recording what they did and puts the file back. Every link after
+      the deletion is now wrong.</li>
+      <li><strong>The failure is located, not just detected.</strong> "Entry
+      4,812 does not hash to what the chain recorded" is a starting point.
+      "Something is wrong somewhere" is not.</li>
+    </ul>
+
+    <p>That is a corruption detector, and a decent one. It is not tamper
+    evidence, and the gap between those is the whole point of this post.</p>
+
+    <h2>The attacker it does nothing about</h2>
+
+    <p>A hash chain catches whoever cannot recompute it.</p>
+
+    <p>Consider who can edit the audit log. They have write access to the
+    volume holding it. The chain file is on that same volume, written by the
+    same process, using a published algorithm over the entries themselves.
+    There is no key. Nothing about recomputing it is privileged.</p>
+
+    <p>So the attack is: delete the entries recording what you did, recompute
+    every hash from that point forward, write both files back.</p>
+
+    <figure>
+      <figcaption>what an attacker with write access does</figcaption>
+      <pre><code>prev=$GENESIS; seq=0
+while IFS= read -r line; do
+    seq=$((seq + 1))
+    eh="$(printf '%s\n' "$line" | sha256sum | cut -d' ' -f1)"
+    ch="$(printf '%s%s' "$prev" "$eh" | sha256sum | cut -d' ' -f1)"
+    printf '%s %s %s\n' "$seq" "$eh" "$ch" &gt;&gt; chain.log
+    prev="$ch"
+done &lt; audit.log</code></pre>
+    </figure>
+
+    <p>Twelve lines. The result passes every check that reads only the log
+    and the chain, because it <em>is</em> consistent — the chain correctly
+    describes the history it was given.</p>
+
+    <p class="thesis">It is internally consistent and completely false.</p>
+
+    <p>This is the part I think gets skipped. "We hash-chain our audit log"
+    is said as though it settles the question, and against the threat people
+    usually have in mind — an insider covering their tracks — it settles
+    nothing at all.</p>
+
+    <h2>What does break it</h2>
+
+    <p>A copy of the head hash, held somewhere the attacker is not.</p>
+
+    <p>Once the head for sequence N is written down elsewhere, any later
+    rewrite of entries at or before N produces a different head. The
+    rewritten chain is still self-consistent; it just no longer agrees with
+    the record of what it used to say. The attacker cannot fix the
+    disagreement without also reaching the anchors.</p>
+
+    <p>So the collector gained a sibling: a separate service whose only job
+    is to copy the chain head somewhere else, periodically.</p>
+
+    <figure>
+      <figcaption>docker/dev/docker-compose.yml</figcaption>
+      <pre><code>audit-anchor:
+  build: ../audit-collector
+  entrypoint: ["/usr/local/bin/anchor.sh"]
+  volumes:
+    - audit-logs:/collector:ro     # read-only: it cannot alter the trail
+    - audit-anchors:/anchors       # and the collector has no mount here</code></pre>
+    </figure>
+
+    <p>Two properties, and both matter:</p>
+
+    <p><strong>The audit volume is mounted read-only.</strong> The anchor
+    service cannot alter the thing it is attesting to.</p>
+
+    <p><strong>The collector has no mount for the anchors at all.</strong>
+    Compromising the process that writes the log does not give you the record
+    of what the log used to say.</p>
+
+    <p>Anchoring is periodic rather than per-entry, which is a real
+    limitation stated plainly: entries written since the last anchor are
+    covered by the chain but not yet by an anchor. That interval is the
+    window in which a thorough attacker can still rewrite history undetected.
+    Shorter is safer and noisier.</p>
+
+    <h2>Testing a negative</h2>
+
+    <p>Here is the part I would want a reviewer to look at, because it is
+    easy to build all of this and never check that the anchors are doing
+    anything.</p>
+
+    <p>The test builds a trail, anchors the real head, deletes an entry,
+    recomputes the whole chain — and then asserts <strong>both</strong>
+    halves:</p>
+
+    <figure>
+      <figcaption>tests/audit-chain/run-tests.sh</figcaption>
+      <pre><code># First half: it passes everything that reads only the log and the chain.
+run_verify_no_anchors "$D"
+assert_rc    "a rewritten chain passes without anchors" 0
+assert_says  "and claims the chain is intact"           "chain intact"
+
+# Second half: the anchor remembers a head that no longer exists.
+run_verify "$D"
+assert_rc   "the anchor catches the rewrite"   1
+assert_says "and says the trail was truncated" "truncated"</code></pre>
+    </figure>
+
+    <p>The first assertion is the interesting one. It asserts that
+    verification <strong>succeeds</strong> on a forged trail — that the chain
+    alone is fooled.</p>
+
+    <p>That looks like a test of the bug rather than the fix, and that is
+    exactly what it is for. It is the evidence that anchoring is load-bearing
+    rather than decoration. If that assertion ever starts failing, it means
+    chaining alone became sufficient somehow, and the right response is to
+    re-read the reasoning rather than to "fix" the test.</p>
+
+    <p>I checked both directions by mutation, because an assertion that has
+    never been made to fail is not yet known to test anything. Dropping the
+    previous hash from the link turns eight assertions red; disabling the
+    anchor comparison turns three red.</p>
+
+    <h2>What this still is not</h2>
+
+    <p>Both volumes live on the same Docker daemon.</p>
+
+    <p>A sufficiently privileged compromise of that host reaches the anchors
+    too, so what exists is tamper <em>evidence</em> — you can tell that
+    something was altered — and not tamper <em>proofing</em>. Only the first
+    is claimed, in the code comments, the docs, and the README.</p>
+
+    <p>A production anchor belongs where the audited host cannot write at
+    all: object-locked storage with a retention policy, a different cloud
+    account, or an external timestamping service. The anchor format is three
+    fields of text — timestamp, sequence, hash — specifically so that
+    shipping it somewhere else is a change of destination and not a
+    redesign.</p>
+
+    <h2>The general shape</h2>
+
+    <p>Every integrity mechanism has an implicit <em>against whom</em>, and
+    it is usually unstated.</p>
+
+    <p>A hash chain answers "against someone who can modify the data but not
+    recompute the digests." For a transmission error or a clumsy edit, that
+    is the right threat model. For an insider with write access — the threat
+    an audit log exists for — it is the wrong one, and the mechanism is
+    approximately decorative.</p>
+
+    <p>So the question worth asking of any integrity control is not "is this
+    cryptographically sound." It usually is. The question is: <strong>who is
+    it that cannot do this?</strong> If the answer turns out to be "nobody
+    who could attack us anyway", you have built a corruption detector and
+    called it something else.</p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>The collector and the anchor service are in
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>,
+    with the verifier in
+    <a href="https://github.com/sethbergman/vault-reference-platform/blob/main/scripts/verify-audit-chain.sh"><code>scripts/verify-audit-chain.sh</code></a>
+    and the tests in
+    <a href="https://github.com/sethbergman/vault-reference-platform/tree/main/tests/audit-chain"><code>tests/audit-chain/</code></a>.</p>
+  </footer>
+
+</article>
+</body>
+</html>
