@@ -1,65 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <title>Ajax Infinite Scrolling with "Back-To-Top" Button</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href='http://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'>
-    <style type="text/css">@import url(css/reset.css);</style>
-    <style type="text/css">@import url(css/style.css);</style>
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min.js"></script>
-    
-    <!--jQuery Scroll-->
-    <script>            
-			jQuery(document).ready(function() {
-				var offset = 200;
-				var duration = 500;
-				jQuery(window).scroll(function() {
-					if (jQuery(this).scrollTop() > offset) {
-						jQuery('.scroll-to-top').fadeIn(duration);
-					} else {
-						jQuery('.scroll-to-top').fadeOut(duration);
-					}
-				});
-				
-				jQuery('.scroll-to-top').click(function(event) {
-					event.preventDefault();
-					jQuery('html, body').animate({scrollTop: 0}, duration);
-					return false;
-				})
-			});
-	</script>
-	<!--jQuery Scroll Ends-->
-	
-	</head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seth Bergman</title>
+<meta name="description" content="Platform engineering, infrastructure as code, and writing about the parts that fail quietly.">
+<link rel="canonical" href="https://sethbergman.github.io/">
 
+<meta property="og:type" content="website">
+<meta property="og:title" content="Seth Bergman">
+<meta property="og:description" content="Platform engineering, infrastructure as code, and writing about the parts that fail quietly.">
+<meta property="og:url" content="https://sethbergman.github.io/">
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:  #F5F6F1;
+    --ink:     #141915;
+    --muted:   #5D6A61;
+    --rule:    #DCE0D6;
+    --pass:    #15754A;
+    --flag:    #A2401C;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.4rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #101310;
+      --ink:    #E6EAE1;
+      --muted:  #93A096;
+      --rule:   #262C25;
+      --pass:   #4FBE86;
+      --flag:   #E0774B;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #101310;
+    --ink:    #E6EAE1;
+    --muted:  #93A096;
+    --rule:   #262C25;
+    --pass:   #4FBE86;
+    --flag:   #E0774B;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(3rem, 10vw, 7rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 34rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  header { display: flex; flex-direction: column; gap: 0.9rem; }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+
+  .tagline {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    font-style: italic;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .posts { display: flex; flex-direction: column; gap: 1.75rem; }
+
+  .post-title {
+    font-family: var(--serif);
+    font-size: var(--step-1);
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.35rem;
+  }
+
+  .post-title a {
+    color: var(--ink);
+    text-decoration-color: var(--rule);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+  }
+  .post-title a:hover { color: var(--pass); text-decoration-color: currentColor; }
+
+  .post-meta {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    margin: 0 0 0.5rem;
+  }
+
+  .post-blurb { color: var(--muted); margin: 0; }
+
+  .elsewhere { display: flex; flex-direction: column; gap: 0.6rem; }
+
+  .elsewhere p { margin: 0; color: var(--muted); }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+  }
+</style>
+</head>
 <body>
-   		
-   		
-       	<section id="scroll-down">
-			<h1>scroll down.</h1>
-			<img src="images/scroll-down.png">
-        </section>
-        
-        <section id="see-it">
-			<h1>do you see it?</h1>
-			<img src="images/see-it.png">
-        </section>
-        
-        <section id="try-it">
-			<h1>try it!</h1>
-        </section>
-        
-        <div class="scroll-to-top">
-		<!-- <p>Scroll to top</p> *Use this as a text option, instead of the image icon.*-->
-		</div>
+<div class="page">
 
-		
-		
-		<!--Retina js for retina display devices *Optional*-->
-			<script type="text/javascript" src="js/retina.js"></script>
-		<!--Retina Js-->
+  <header>
+    <h1>Seth Bergman</h1>
+    <p class="tagline">Platform engineering and infrastructure as code —
+    mostly writing about the parts that fail quietly.</p>
+  </header>
 
+  <section>
+    <h2>Writing</h2>
+    <div class="posts">
+
+      <article>
+        <p class="post-meta">August 2026</p>
+        <p class="post-title">
+          <a href="/posts/three-green-timers/">Three green timers and zero backups</a>
+        </p>
+        <p class="post-blurb">A test double can only encode what you already
+        believe. Three incidents from a HashiCorp Vault platform — a shim that
+        agreed with the bug, one that disagreed with the environment, and a
+        mock that never modelled the consumer at all.</p>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="elsewhere">
+    <h2>Elsewhere</h2>
+    <p><a href="https://github.com/sethbergman">github.com/sethbergman</a></p>
+    <p><a href="https://github.com/sethbergman/vault-reference-platform">vault-reference-platform</a>
+    — a reference implementation for running HashiCorp Vault: HA Raft,
+    auto-unseal, dynamic secrets, PKI migration, tamper-evident audit.</p>
+  </section>
+
+</div>
 </body>
 </html>

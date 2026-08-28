@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three green timers and zero backups</title>
+<meta name="description" content="A test double can only encode what you already believe. Three incidents from a HashiCorp Vault platform, and the one sentence underneath all of them.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/three-green-timers/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Three green timers and zero backups">
+<meta property="og:description" content="A test double can only encode what you already believe. Three incidents from a HashiCorp Vault platform, and the one sentence underneath all of them.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/three-green-timers/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Three green timers and zero backups">
+<meta name="twitter:description" content="A test double can only encode what you already believe. Three incidents from a HashiCorp Vault platform, and the one sentence underneath all of them.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Post-mortem &middot; HashiCorp Vault</p>
+    <p class="hero-log">Node is <span class="flag">unknown</span>, not active</p>
+    <p class="hero-gloss">It printed this on the active node.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>Three green timers and zero backups</h1>
+
+    <p class="standfirst">A test double can only encode what you already
+    believe. Where the belief is wrong, the double agrees with you — and
+    agreement is indistinguishable from a passing test.</p>
+
+    <p>The integration suite had been running against a real three-node
+    <a href="https://www.vaultproject.io/">HashiCorp Vault</a> cluster for
+    about ninety seconds when it printed that line. On the active node.</p>
+
+    <p>That was the first of three. All three are the same mistake wearing
+    different clothes, and it took me until the third to see what they had
+    in common.</p>
+
+    <h2><span class="n">One</span>The double agreed with the bug</h2>
+
+    <p>Scheduled Raft snapshots run hourly from a systemd timer on all
+    three nodes. Only the leader should take one — two standbys writing
+    redundant snapshots every hour is triple the storage for no additional
+    recovery capability. So the script checked whether it was the
+    leader:</p>
+
+    <figure>
+      <figcaption>scripts/snapshot.sh — before</figcaption>
+      <pre><code>HA_MODE="$(jq -r '.ha_mode // "unknown"' &lt;&lt;&lt; "$STATUS_JSON")"
+
+if [[ "$HA_MODE" != "active" ]]; then
+    log "Node is ${HA_MODE}, not active; the leader takes the snapshot."
+    exit 0
+fi</code></pre>
+    </figure>
+
+    <p>Run <code>vault status</code> and you see <code>HA Mode  active</code>.
+    Run <code>vault status -format=json</code> and <code>ha_mode</code> is
+    not there. Those HA fields are rendered by the CLI for its <em>text</em>
+    output; they are not keys in the JSON. Reported upstream since 2020
+    (<a href="https://github.com/hashicorp/vault/issues/9185">hashicorp/vault#9185</a>).</p>
+
+    <p>So <code>.ha_mode</code> was null, <code>// "unknown"</code>
+    substituted the string, <code>"unknown"</code> is not
+    <code>"active"</code>, and the script exited 0 having done nothing. On
+    every node. Every hour.</p>
+
+    <p><strong>Three green timers. Zero backups.</strong></p>
+
+    <p>There was a test suite for that script. It ran the real script
+    against a fake <code>vault</code> binary on <code>PATH</code>, and it
+    asserted real things: a standby takes no snapshot, an empty snapshot is
+    never uploaded, a failed upload is a failure. It was green. It had
+    always been green.</p>
+
+    <figure>
+      <figcaption>tests/snapshot/fake-bin/vault — before</figcaption>
+      <pre><code>"status -format=json")
+    printf '{"sealed":%s,"ha_mode":"%s","initialized":true}\n' \
+        "${FAKE_SEALED:-false}" "${FAKE_HA_MODE:-active}"
+    exit 0
+    ;;</code></pre>
+    </figure>
+
+    <div class="agreement">
+      <div>
+        <p class="who">The script read</p>
+        <p class="said">.ha_mode</p>
+      </div>
+      <div>
+        <p class="who">The shim wrote</p>
+        <p class="said">"ha_mode": "active"</p>
+      </div>
+    </div>
+
+    <p class="verdict">Both sides agreed &middot; Neither was right</p>
+
+    <p>I wrote the script believing <code>vault status -format=json</code>
+    contained <code>ha_mode</code>. Then I wrote the shim from the same
+    belief. The suite then confirmed, correctly and repeatedly, that the
+    script read a field which existed only because I had put it there.</p>
+
+    <p>Not "the mock drifted out of date." The mock was never right. It was
+    a faithful reproduction of my misconception.</p>
+
+    <h3>What else was green at the same time</h3>
+
+    <p>Two other things, and both were honest.</p>
+
+    <p>The <strong>systemd timers</strong> were green because the script
+    exited 0. The unit ran and succeeded. It succeeded at doing nothing.</p>
+
+    <p>The <strong>disaster-recovery drill</strong> was green because it
+    genuinely works: it takes a snapshot, destroys the node and its
+    storage, restores into a replacement, and verifies a secret written
+    beforehand reads back. It passes on every pull request. But it calls
+    <code>vault operator raft snapshot save</code> directly. It never goes
+    through the scheduled path, so it proved snapshots restore while
+    proving nothing about whether any were being taken.</p>
+
+    <p>Neither was lying. The bug lived in the gap between two true
+    statements.</p>
+
+    <h2><span class="n">Two</span>The double disagreed with reality</h2>
+
+    <p>The next day, a different suite. This one drives a script that
+    migrates a cluster onto Vault-issued TLS certificates, and it has to
+    decide whether a node is already migrated. The driver reads the CA's
+    subject with the real <code>openssl</code>; the shim answers the "what
+    certificate is this node serving" question with a canned issuer:</p>
+
+    <figure>
+      <pre><code>pki) printf 'ISSUER:CN=vault pki CA\n' ;;</code></pre>
+    </figure>
+
+    <p>37 assertions, all green, on my machine. On CI, five failed:</p>
+
+    <figure>
+      <pre><code>Refusing to prune: vault-0 vault-1 vault-2 still serve a non-PKI certificate</code></pre>
+    </figure>
+
+    <p>Every node read as un-migrated. The driver was right to refuse — on
+    the evidence it had.</p>
+
+    <p>OpenSSL renders a distinguished name differently between builds.
+    Mine printed <code>CN=vault pki CA</code>. The runner's OpenSSL 3.0
+    printed <code>CN = vault pki CA</code>, with spaces. The substring
+    comparison failed, and nothing was migrated as far as the driver could
+    tell.</p>
+
+    <p>This one is the first one inverted. There, the double agreed with
+    the code and hid a real bug. Here, the double disagreed with the
+    environment and invented one that did not exist. Same root: <strong>the
+    double asserted something about the outside world that had been checked
+    on exactly one machine.</strong></p>
+
+    <p>The fix was not to normalise whitespace. It was to stop the shim
+    having an opinion at all — it now receives the subject, read from the
+    fixture by the same binary the driver will use, so the two cannot
+    disagree about formatting regardless of what is installed.</p>
+
+    <h2><span class="n">Three</span>The double never modelled the consumer</h2>
+
+    <p>The third has no shim in it, which is why it took me longest to file
+    under the same heading.</p>
+
+    <p>Both cloud profiles are covered by <code>terraform test</code>
+    against mocked providers. That catches more than it sounds like — a Key
+    Vault name over Azure's 24-character limit, an IAM policy granting
+    delete on the snapshot bucket. Every test passed.</p>
+
+    <p>The Azure profile's cloud-init rendered this:</p>
+
+    <figure>
+      <figcaption>terraform/azure/templates/cloud-init.sh.tftpl — before</figcaption>
+      <pre><code>auto_join = "provider=azure tag_name=VaultCluster
+             tag_value=${CLUSTER_NAME}
+             subscription_id=${subscription_id}
+             resource_group=${resource_group}"</code></pre>
+    </figure>
+
+    <p><a href="https://github.com/hashicorp/go-discover">go-discover</a>'s
+    Azure provider accepts <code>tag_name</code> + <code>tag_value</code>,
+    <strong>or</strong> <code>resource_group</code> +
+    <code>vm_scale_set</code>. It rejects any mix of the two with "unclear
+    configuration."</p>
+
+    <p>That cluster would never have formed. And the failure is quiet in
+    the particular way that matters: Vault starts, every node reports
+    healthy, each one sits alone believing itself fine. The only evidence
+    is a line in one node's log.</p>
+
+    <p>No test caught it because no test could. A mocked provider validates
+    the <em>shape</em> of a configuration, not whether the program that
+    eventually reads it will accept the contents. <code>terraform test</code>
+    never runs go-discover. Nothing in the suite knew that string had a
+    grammar.</p>
+
+    <p>It was found by reading go-discover's source, which is not a testing
+    strategy.</p>
+
+    <p>There is a coda. The Terraform-to-Ansible handoff script had a guard
+    against writing a broken config file. The guard called <code>die()</code>
+    on a missing output — but from inside a heredoc, which exits the command
+    substitution's subshell while the enclosing <code>cat</code> succeeds.
+    So it wrote the broken file it existed to prevent, and exited 0. The
+    thing meant to catch the failure had the failure.</p>
+
+    <h2>The shape</h2>
+
+    <p>Three incidents, one sentence:</p>
+
+    <p class="thesis">A test double can only encode what you already
+    believe.</p>
+
+    <p>It follows that a double is worthless precisely where your belief is
+    wrong, which is exactly where you needed the test. And the three
+    failures above are the three ways that plays out:</p>
+
+    <div class="table-scroll">
+      <table class="shapes">
+        <thead>
+          <tr><th></th><th>The double</th><th>The result</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>One</td><td>agreed with the code</td><td>a real bug, hidden</td></tr>
+          <tr><td>Two</td><td>disagreed with the environment</td><td>a false bug, invented</td></tr>
+          <tr><td>Three</td><td>never modelled the consumer</td><td>a real bug, unreachable</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>None of this is an argument against test doubles. Shims are the
+    right trade for most of what this repository does: they are fast, need
+    no credentials, and reach failure modes a live cluster will not
+    reproduce on demand — a corrupt snapshot, a failed upload, a node
+    sealed at exactly the wrong moment. Deleting them would cost more than
+    it saved.</p>
+
+    <p>It is an argument that a green suite of doubles is evidence about
+    internal consistency, and you have to go and get the other kind
+    separately.</p>
+
+    <h2>What actually changed</h2>
+
+    <p><strong>Doubles mirror the real response shape, and are not allowed
+    opinions of their own.</strong> The <code>vault</code> shim no longer
+    emits <code>ha_mode</code>, because the real command does not. The
+    openssl shim is handed the DN rather than knowing one.</p>
+
+    <p><strong>Every claim that rested on a document got a real
+    instance.</strong> An integration suite stands up the real three-node
+    cluster and runs the operational scripts against it. It found the first
+    bug on its first run. That is not a coincidence; it is what the suite is
+    for.</p>
+
+    <p><strong>Assertions are checked by mutation, not counted.</strong>
+    Every suite here has to be made to fail on purpose. When I fixed the
+    leadership check, I confirmed that restoring the <code>//</code> form
+    turned it red and that letting a standby proceed turned it red. Later,
+    an assertion in a different suite — "an unhealthy node aborts the run" —
+    turned out to pass with the health check deleted, because an earlier
+    check aborted first. It had never tested anything. Mutation is how that
+    surfaced.</p>
+
+    <p><strong>And I ask one question of any green suite:</strong> what
+    does this assume that nothing inside it can check?</p>
+
+    <p>For snapshots the answer was a field name. It cost every backup I
+    thought I had, for as long as nobody looked in the bucket.</p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>The code is
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>.
+    The three commits are
+    <a href="https://github.com/sethbergman/vault-reference-platform/commit/fd34799"><code>fd34799</code></a>,
+    <a href="https://github.com/sethbergman/vault-reference-platform/commit/d6d493d"><code>d6d493d</code></a>
+    and
+    <a href="https://github.com/sethbergman/vault-reference-platform/commit/ff226a9"><code>ff226a9</code></a>.</p>
+  </footer>
+
+</article>
+</body>
+</html>
