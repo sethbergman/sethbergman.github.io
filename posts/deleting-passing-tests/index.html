@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I had to delete a passing test to fix the bug</title>
+<meta name="description" content="An assertion is a claim about the world. Green means the code agrees with the claim, not that the claim is true — and a wrong claim defends the defect.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/deleting-passing-tests/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="I had to delete a passing test to fix the bug">
+<meta property="og:description" content="An assertion is a claim about the world. Green means the code agrees with the claim, not that the claim is true — and a wrong claim defends the defect.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/deleting-passing-tests/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="I had to delete a passing test to fix the bug">
+<meta name="twitter:description" content="An assertion is a claim about the world. Green means the code agrees with the claim, not that the claim is true — and a wrong claim defends the defect.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+<style>
+  /* This post quotes the repository's own testing notes back at itself. */
+  blockquote {
+    margin: 0.25rem 0;
+    padding: 0.2rem 0 0.2rem clamp(1rem, 4vw, 1.6rem);
+    border-left: 2px solid var(--rule);
+    color: var(--muted);
+    font-style: italic;
+  }
+  blockquote p { margin: 0; }
+  ul { margin: 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.5rem; }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Testing &middot; Terraform</p>
+    <p class="hero-log">health_check_type == <span class="flag">"ELB"</span></p>
+    <p class="hero-gloss">A green assertion that guaranteed the cluster could never start.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>I had to delete a passing test to fix the bug</h1>
+
+    <p class="standfirst">An assertion is a claim about the world. Green means
+    the code agrees with the claim — not that the claim is true. When the
+    claim is wrong, the test stops being a safety net and becomes a lock.</p>
+
+    <p>Here is a test. It passed on every pull request for weeks. Read the
+    comment first, because the comment is the interesting part:</p>
+
+    <figure>
+      <figcaption>terraform/aws/tests/cluster.tftest.hcl — before</figcaption>
+      <pre><code>run "health_check_uses_the_load_balancer_not_just_ec2" {
+  command = plan
+
+  # EC2 health only knows whether the instance is running. A node that is
+  # up but sealed, or wedged, is useless and must be replaced — only the
+  # load balancer's check can tell the difference.
+  assert {
+    condition     = aws_autoscaling_group.vault.health_check_type == "ELB"
+    error_message = "ASG health check must be ELB so sealed-but-running nodes are replaced."
+  }
+}</code></pre>
+    </figure>
+
+    <p>Everything in that comment is true. A Vault node that is running but
+    sealed <em>is</em> useless. EC2 health checks genuinely cannot see it. The
+    load balancer's check genuinely can. If you were reviewing this, you would
+    approve it, and you would be right to.</p>
+
+    <p>It also guaranteed that the cluster could never start.</p>
+
+    <h2>What it was protecting</h2>
+
+    <p>The Terraform profile deliberately does not issue TLS certificates. The
+    user-data script says so in as many words and defers to the Ansible layer
+    that runs afterwards. Vault will not start without a certificate — which
+    is correct behaviour, since a Vault serving plaintext is worse than one
+    that does not serve.</p>
+
+    <p>So between <code>terraform apply</code> and the Ansible run, there is a
+    window where every node is up and Vault is not listening.</p>
+
+    <p>With <code>health_check_type = "ELB"</code>, the autoscaling group
+    spends that window asking the load balancer whether each instance is
+    healthy. The load balancer asks Vault. Vault is not there. At the end of
+    the grace period the group marks the instance unhealthy, terminates it,
+    and launches a replacement — which boots, fails to start Vault, and is
+    terminated in turn.</p>
+
+    <p>A bare <code>terraform apply</code> never converges. It bills EC2,
+    three NAT gateways and EBS for as long as you let it run, and it looks
+    like a slow bootstrap rather than a configuration that cannot work.</p>
+
+    <p>The fix is one word: <code>EC2</code> until Ansible has run,
+    <code>ELB</code> afterwards. But to make that change I had to delete a
+    green assertion whose reasoning was correct.</p>
+
+    <p>That is a strange feeling, and it is the reason I am writing this down.
+    Deleting a passing test feels like vandalism. Every instinct says the test
+    knows something you have forgotten.</p>
+
+    <h2>The one that looked even more responsible</h2>
+
+    <p>Same repository, same week, a different assertion:</p>
+
+    <figure>
+      <figcaption>terraform/aws/tests/security.tftest.hcl — before</figcaption>
+      <pre><code># The node security group must never take an ingress CIDR rule at all:
+# the only ingress paths are references to the load balancer's group or
+# to itself. A cidr_ipv4 rule appearing here means someone opened the
+# API to a network range directly.
+assert {
+  condition     = aws_vpc_security_group_ingress_rule.vault_api_from_lb.cidr_ipv4 == null
+  error_message = "Vault API ingress must come from the load balancer's security group, not a CIDR."
+}</code></pre>
+    </figure>
+
+    <p>This one is even harder to argue with, because it reads as a security
+    control. A CIDR rule on the node group <em>would</em> be a way to reach
+    Vault without going through the load balancer. Forbidding it looks like
+    exactly the invariant you would want.</p>
+
+    <p>The target group uses <code>target_type = "instance"</code>. For
+    instance targets on a Network Load Balancer, <strong>client IP
+    preservation is enabled and cannot be turned off</strong>. The load
+    balancer forwards each packet with the original client's address as its
+    source — not its own.</p>
+
+    <p>So the security-group reference matched the health checks, which come
+    from the load balancer's own network interface, and nothing else. Client
+    traffic arrived from client addresses, matched no rule, and was
+    dropped.</p>
+
+    <p class="thesis">Every target reported healthy. The autoscaling group was
+    content. Dashboards were green. No client could connect.</p>
+
+    <p>To fix it I had to add the CIDR rule the test forbade — and rewrite the
+    assertion that forbade it.</p>
+
+    <h2>Then I did it to myself</h2>
+
+    <p>Later the same week I split one KMS key into two, and wrote what I
+    thought was a careful test:</p>
+
+    <figure>
+      <pre><code>condition = ...ebs[0].kms_key_id != aws_kms_key.vault_autounseal.arn</code></pre>
+    </figure>
+
+    <p>It failed. Not because the code was wrong — because of this, in the
+    mock provider the test suite runs against:</p>
+
+    <figure>
+      <figcaption>terraform/aws/tests/mocks/aws/main.tfmock.hcl</figcaption>
+      <pre><code>mock_resource "aws_kms_key" {
+  defaults = {
+    arn = "arn:aws:kms:us-east-1:123456789012:key/12345678-..."
+  }
+}</code></pre>
+    </figure>
+
+    <p>Every <code>aws_kms_key</code> gets the same arn. So <code>!=</code>
+    could never hold, and <code>==</code> would have passed no matter which
+    key the volume actually used. Both directions were meaningless. Had I
+    written the assertion the other way round, it would have gone green and
+    told me nothing.</p>
+
+    <p>The repository's own testing notes warn about this in as many words:</p>
+
+    <blockquote>
+      <p>assert on config values and locals; treat any assertion that reads a
+      mocked data source as suspect</p>
+    </blockquote>
+
+    <p>I had read that file. I wrote the assertion anyway.</p>
+
+    <h2>What these have in common</h2>
+
+    <p>Not that the tests were sloppy. All three were written deliberately,
+    with comments explaining the reasoning, by someone trying to pin down a
+    property that mattered.</p>
+
+    <p>The common shape is narrower: <strong>an assertion is a claim about the
+    world, and a green test means the code agrees with the claim. It says
+    nothing about whether the claim is true.</strong></p>
+
+    <p>When the claim is wrong, green is not merely useless — it actively
+    defends the defect. Fixing the bug now requires deleting a passing test,
+    and every review instinct you have says do not do that.</p>
+
+    <div class="table-scroll">
+      <table class="shapes">
+        <thead>
+          <tr><th>The claim</th><th>Why it was wrong</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>health checks must be ELB</td><td>true once serving, fatal before Ansible runs</td></tr>
+          <tr><td>node group must take no CIDR</td><td>true if the LB were the source, and it is not</td></tr>
+          <tr><td>these two arns must differ</td><td>the mock gives every key one arn</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>The tells</h2>
+
+    <p>Having been caught three times in a week, here is what I now look
+    at:</p>
+
+    <p><strong>An exact value where a property was meant.</strong>
+    <code>== "ELB"</code> pins one value for all time. What was actually
+    wanted was "the group can detect a node that is up but not serving" —
+    which is true of <code>ELB</code> only under a precondition nobody wrote
+    down.</p>
+
+    <p><strong>An assertion written in the same sitting as the code.</strong>
+    It then encodes the same assumptions, and can only confirm them. This is
+    the mock problem in a different coat: when the code and the check share an
+    author and an hour, they share a belief.</p>
+
+    <p><strong>A comment that argues rather than states.</strong> All three of
+    these have persuasive comments. Persuasion in a test comment usually means
+    the author was reasoning about <em>why the value is right</em>, rather
+    than <em>what would have to be true for it to be wrong</em>.</p>
+
+    <p><strong>And the loudest one: you are editing a test in order to make a
+    fix.</strong> That moment is worth stopping at every single time.
+    Sometimes the test is stale. Sometimes it is telling you the fix is wrong.
+    And sometimes it has been holding the bug in place since the day it was
+    written, which is the case you will not consider unless you make
+    yourself.</p>
+
+    <h2>What I changed</h2>
+
+    <p><strong>Mutation, not counting.</strong> Every assertion here has to be
+    made to fail on purpose. Reverting the health check default to
+    <code>ELB</code> turns exactly one red. If an assertion cannot be made to
+    fail, it is not yet known to test anything.</p>
+
+    <p><strong>Assert properties, not values, where the property is what you
+    mean.</strong> The health check test now asserts two things: that the
+    default is <code>EC2</code>, so a bare apply terminates, and that
+    <code>ELB</code> is reachable, so the profile is not trapped. Neither
+    alone is the point; the pair is.</p>
+
+    <p><strong>Put the assertion where it can be answered.</strong> The KMS
+    arn comparison moved out of the mocked suite entirely and into a run
+    against an emulated AWS API, where the arns are real and distinct. The
+    mocked suite now asserts only configuration — two keys, different
+    descriptions, different deletion windows — which is all it can honestly
+    see.</p>
+
+    <p>None of that would have helped with the first two. Those needed
+    something duller: asking, of a green test, <em>what would have to be true
+    for this claim to be false</em> — and noticing that for the health check,
+    the answer was "the thing it protects has not been provisioned yet", which
+    was written down in the very script the test was covering.</p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>The code is
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>.
+    The three commits are
+    <a href="https://github.com/sethbergman/vault-reference-platform/commit/7b38acd"><code>7b38acd</code></a>,
+    <a href="https://github.com/sethbergman/vault-reference-platform/commit/b28c4d8"><code>b28c4d8</code></a>
+    and
+    <a href="https://github.com/sethbergman/vault-reference-platform/commit/0b640f8"><code>0b640f8</code></a>.</p>
+  </footer>
+
+</article>
+</body>
+</html>
