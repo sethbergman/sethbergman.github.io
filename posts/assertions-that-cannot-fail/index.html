@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nobody had watched these tests fail</title>
+<meta name="description" content="A mutation table is a list of claims about your test suite. Mine had thirteen rows and none had ever been run — six assertions turned out to have no input that could make them fail.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/assertions-that-cannot-fail/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nobody had watched these tests fail">
+<meta property="og:description" content="A mutation table is a list of claims about your test suite. Mine had thirteen rows and none had ever been run — six assertions turned out to have no input that could make them fail.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/assertions-that-cannot-fail/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Nobody had watched these tests fail">
+<meta name="twitter:description" content="A mutation table is a list of claims about your test suite. Mine had thirteen rows and none had ever been run — six assertions turned out to have no input that could make them fail.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+<style>
+  /* This post quotes the repository's own testing notes back at itself. */
+  blockquote {
+    margin: 0.25rem 0;
+    padding: 0.2rem 0 0.2rem clamp(1rem, 4vw, 1.6rem);
+    border-left: 2px solid var(--rule);
+    color: var(--muted);
+    font-style: italic;
+  }
+  blockquote p { margin: 0; }
+  ul { margin: 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.5rem; }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Testing &middot; Terraform</p>
+    <p class="hero-log">15 + 1 + 8 &lt;= <span class="flag">24</span></p>
+    <p class="hero-gloss">An assertion with no input that could make it fail.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>Nobody had watched these tests fail</h1>
+
+    <p class="standfirst">A mutation table is a list of claims about your test
+    suite: break this, and that run goes red. Mine had thirteen rows, and a
+    heading admitting none of them had ever been run. Six assertions did not
+    survive the first time anyone checked.</p>
+
+    <p>The repository this comes from has one rule about what "done" means: a
+    feature is done when there is a test that fails if it breaks. Not when the
+    code exists. To keep that honest, each Terraform suite carries a table —
+    deliberate break in one column, the test run that catches it in the
+    other.</p>
+
+    <p>The AWS table was built the right way round: every row was added after
+    watching that run go red. The Azure table was not, and its own heading
+    said so:</p>
+
+    <blockquote>
+      <p>The mutation table is not verified yet. An assertion that has never
+      been watched to fail is an assertion nobody has shown to work.</p>
+    </blockquote>
+
+    <p>I wrote that sentence. Then I shipped a release with it still true.</p>
+
+    <p>Verifying it needs no credentials, no cluster and no money — the suite
+    is mocked providers and it finishes in about two seconds. So I ran the
+    thirteen rows, plus one mutation for every run the table had never listed:
+    36 in all, each applied, run, and reverted. Thirty-three landed on the
+    assertion that claimed them. Three were refused by the provider before any
+    assertion ran. Six assertions stayed green through the break they
+    named.</p>
+
+    <h2>The one that could not fail</h2>
+
+    <p>Azure Key Vault names are capped at 24 characters and are globally
+    unique, so the module builds one from a truncated cluster name plus eight
+    hex characters of randomness. The test looked like this:</p>
+
+    <figure>
+      <figcaption>terraform/azure/tests/security.tftest.hcl — before</figcaption>
+      <pre><code>assert {
+  condition     = length(substr(replace(lower(var.cluster_name), "/[^a-z0-9-]/", ""), 0, 15)) + 1 + 8 &lt;= 24
+  error_message = "Key Vault name would exceed Azure's 24-character limit: 15-char prefix + dash + 8 hex is the budget."
+}</code></pre>
+    </figure>
+
+    <p>Read it as arithmetic rather than as a test. <code>substr(x, 0, 15)</code>
+    returns at most fifteen characters. Fifteen, plus one for the dash, plus
+    eight for the suffix, is 24. The condition is <code>24 &lt;= 24</code> for
+    every input in existence.</p>
+
+    <p class="thesis">There was no cluster name, no configuration and no
+    future edit that could turn that assertion red. It had been green since
+    the day it was written, and it would have stayed green forever.</p>
+
+    <p>The mutation that proves it: widen the module's real budget from 15 to
+    20 — the change someone makes the first time a customer wants a longer
+    cluster name — and every run still passes, while the module now generates
+    a 29-character name that Azure rejects at apply. Which is precisely the
+    failure this assertion was written to prevent, and it had been documented
+    as covered.</p>
+
+    <p>The flaw is not the arithmetic. It is that the test <em>re-derived</em>
+    the module's naming rule instead of reading it. A test that recomputes
+    what the code computes is testing the recomputation.</p>
+
+    <p>The fix is to make the value legible to the test. The module now
+    exposes the prefix as a local, and the assertion reads it:</p>
+
+    <figure>
+      <figcaption>terraform/azure/tests/security.tftest.hcl — after</figcaption>
+      <pre><code>variables {
+  # At the 15-character default, every budget yields the same
+  # 15-character prefix. Only a name at the cap can tell them apart.
+  cluster_name = "vault-reference-platform-azure"
+}
+
+assert {
+  condition     = length(local.key_vault_name_prefix) + 1 + 8 &lt;= 24
+  error_message = "Key Vault name would exceed Azure's 24-character limit: 15-char prefix + dash + 8 hex is the budget."
+}</code></pre>
+    </figure>
+
+    <p>That comment is the second half of the lesson. Reading the local is not
+    enough on its own: the default cluster name is exactly fifteen characters,
+    so truncating at 15 and truncating at 20 produce identical output. The
+    assertion needed an input long enough for the two to disagree. Without it,
+    the fixed test would have been just as green as the broken one, for a
+    subtler reason.</p>
+
+    <h2>The one the provider was already enforcing</h2>
+
+    <p>Next to it, guarding the key that every snapshot is encrypted
+    under:</p>
+
+    <figure>
+      <pre><code>condition = azurerm_key_vault.vault_autounseal.soft_delete_retention_days &gt;= 7</code></pre>
+    </figure>
+
+    <p>The module sets 90. Shortening that to a week is a real regression: it
+    is the difference between recovering a key someone deleted last month and
+    not. So I mutated it to 3 and expected red.</p>
+
+    <p>I got red, from the wrong place:</p>
+
+    <figure>
+      <pre><code>Error: expected soft_delete_retention_days to be in the range (7 - 90), got 3</code></pre>
+    </figure>
+
+    <p>The azurerm provider validates that field's range in its own schema —
+    which mocked providers still run, because mocking replaces what a provider
+    <em>does</em>, not what it will accept. So the assertion sat exactly on a
+    bound something else already enforced. Every value the provider allows
+    passes it. Every value that would fail it never reaches it.</p>
+
+    <p>It now asserts <code>&gt;= 30</code>, above the floor, where shortening
+    90 days to the minimum does break it.</p>
+
+    <p>The same trap, one file over. A catch-all deny rule has to sit below
+    every allow in an Azure NSG, and the table's row read "the deny rule moved
+    above the allows". Azure's priority floor is 100 and the API allow holds
+    it, so <em>above every allow</em> is not a configuration that exists —
+    the provider refuses to create it. The mistake a contributor can actually
+    make is a deny at 105: the API stays reachable, so nothing looks wrong,
+    while Raft at 110 and the health probe at 120 are both denied. A cluster
+    that never forms, behind a load balancer that ejects every node.</p>
+
+    <p>The assertion compared the deny rule against one allow. 105 walked
+    straight through it.</p>
+
+    <h2>The ones watching the wrong object</h2>
+
+    <p>Two more, both of the same shape — the assertion looked at an input
+    rather than at the thing built from it.</p>
+
+    <p>"The Vault API is not reachable from the whole internet" was asserted
+    as <code>!contains(var.allowed_cidr_blocks, "0.0.0.0/0")</code>: a claim
+    about a variable's default. Replace the rule's
+    <code>source_address_prefixes = var.allowed_cidr_blocks</code> with
+    <code>source_address_prefix = "Internet"</code> and the API is open to
+    everyone while the default stays dutifully RFC1918. Green.</p>
+
+    <p>And Raft discovery. Azure's peer discovery enumerates a scale set,
+    which go-discover expresses as a resource group <em>and</em> a scale set
+    name — either alone is rejected. The run asserted that the rendered
+    cloud-init named the scale set, and that it carried a subscription. It
+    never asserted the resource group. Dropping it leaves a line that still
+    reads like scale-set discovery, that Vault starts happily with, and that
+    forms no cluster.</p>
+
+    <h2>The gap that had outlived its reason</h2>
+
+    <p>The sixth was not a wrong assertion but a missing one, and it came with
+    a comment explaining why:</p>
+
+    <figure>
+      <pre><code># Not asserted here: that health_probe_id points at the Vault probe
+# specifically. That comparison needs the probe's computed ID, and
+# resolving it means apply mode, which this module does not survive
+# under mocks.</code></pre>
+    </figure>
+
+    <p>That was true when it was written. It had stopped being true two
+    commits later, when a fix to the storage account's identity mock
+    unblocked apply mode — which two other runs in the same file had been
+    using ever since.</p>
+
+    <p>Meanwhile, deleting the <code>health_probe_id</code> line entirely left
+    all 24 runs green. Without a probe attached, Azure's instance repair falls
+    back to asking whether the VM is running, and a Vault node that is up and
+    sealed is exactly what this cluster's repair exists to notice.</p>
+
+    <p>Comments explaining why something is not covered age badly. Nothing
+    fails when the reason expires.</p>
+
+    <h2>A note on mocked providers</h2>
+
+    <p>Three of the 36 mutations were refused by the provider's schema before
+    any assertion evaluated, and the way that surfaces is worth knowing: a
+    schema error fails the <em>first run in each file</em> and skips
+    everything after it. Break the repair grace period in
+    <code>compute.tf</code> and the report says
+    <code>scale_set_is_pinned_and_does_not_autoscale</code> and
+    <code>the_autounseal_key_cannot_be_purged</code> failed — two runs that
+    have nothing to do with it.</p>
+
+    <p>The error text names the real line. The run names do not. It is a
+    five-minute confusion the first time and a thirty-second one after you
+    have written it down.</p>
+
+    <h2>What these have in common</h2>
+
+    <div class="table-scroll">
+      <table class="shapes">
+        <thead>
+          <tr><th>The claim</th><th>Why it held anyway</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>the name fits in 24 characters</td><td>the test re-derived the rule; substr guarantees it</td></tr>
+          <tr><td>retention is at least 7 days</td><td>the provider refuses anything under 7</td></tr>
+          <tr><td>the deny rule sits below the allows</td><td>compared against one allow of three</td></tr>
+          <tr><td>the API is not open to the internet</td><td>read the variable, not the rule</td></tr>
+          <tr><td>discovery uses scale-set mode</td><td>half the selector was never asserted</td></tr>
+          <tr><td>the probe is wired to repair</td><td>documented as uncovered, reason since expired</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Not one of these is a lazy test. Every one names the right property,
+    with a comment explaining why the property matters, and every comment is
+    correct. They fail in a narrower way: <strong>they have no input that
+    makes them red.</strong></p>
+
+    <p>That is a different failure from the one I wrote about last time, where
+    an assertion made a claim that was wrong. These claims are all true. They
+    are just not being checked, and nothing about reading them says so. The
+    only way to find out is to try.</p>
+
+    <h2>The tells</h2>
+
+    <p><strong>The test recomputes what the code computes.</strong> If the
+    assertion contains the same expression as the module, it will agree with
+    the module by construction. Expose the value — a local, an output — and
+    read it.</p>
+
+    <p><strong>The bound belongs to somebody else.</strong> Provider schemas,
+    platform floors, variable validations: all of them reject the bad value
+    before your assertion sees it. An assertion has to sit strictly inside the
+    enforced range to be doing any work.</p>
+
+    <p><strong>The default is the fixture.</strong> An assertion exercised
+    only at the default input can be blind to a whole class of change — the
+    15-character cluster name that made two different truncations
+    indistinguishable. Ask what input would separate correct from broken, and
+    pass that one.</p>
+
+    <p><strong>The comment says why it is not covered.</strong> That reason
+    was true once. Nothing re-checks it, and nothing goes red when it stops
+    being true.</p>
+
+    <h2>And the table itself</h2>
+
+    <p>The uncomfortable part is not any of the six. It is that verifying the
+    whole table cost about an hour, needed no credentials and no cloud
+    account, and the suite it exercises runs in two seconds. Nothing stood
+    between the unverified table and the verified one except doing it.</p>
+
+    <p class="thesis">A mutation table nobody has run is worse than no table
+    at all, because it reads as evidence. Mine sat in a file whose heading
+    said, accurately, that it was not.</p>
+
+    <p>The table now records what each mutation actually did, including the
+    three the provider rejects and the row where the catching run turned out
+    to be a different one than claimed. It also records what is still not
+    covered: the pinning test's comment says there is deliberately no
+    autoscale rule in the module, and nothing enforces that — adding one
+    passes all 25 runs. <code>terraform test</code> asserts on what a
+    configuration contains, not on what it lacks. That is written down now
+    too, as an intention rather than a guarantee.</p>
+
+    <p>None of this changes the honest gap underneath: that profile has still
+    never been applied to a real Azure subscription, and mocked providers
+    create nothing. It changes how much the word "tested" is worth in the
+    sentence that says so.</p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>The code is
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>.
+    The verification is
+    <a href="https://github.com/sethbergman/vault-reference-platform/pull/65">#65</a>,
+    and what it taught is
+    <a href="https://github.com/sethbergman/vault-reference-platform/pull/66">#66</a>.</p>
+  </footer>
+
+</article>
+</body>
+</html>
