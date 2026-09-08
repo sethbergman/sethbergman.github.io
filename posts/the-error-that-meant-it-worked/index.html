@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The error that meant it worked</title>
+<meta name="description" content="A 400 that meant the operation had succeeded, and three more signals I read backwards. None of them were bugs in Vault or AWS — all of them were accurate answers to the question I actually asked.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/the-error-that-meant-it-worked/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="The error that meant it worked">
+<meta property="og:description" content="A 400 that meant the operation had succeeded, and three more signals I read backwards. None of them were bugs in Vault or AWS — all of them were accurate answers to the question I actually asked.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/the-error-that-meant-it-worked/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The error that meant it worked">
+<meta name="twitter:description" content="A 400 that meant the operation had succeeded, and three more signals I read backwards. None of them were bugs in Vault or AWS — all of them were accurate answers to the question I actually asked.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Operations &middot; Reading the signal</p>
+    <p class="hero-log">no rekey configuration found <span class="flag">&mdash; because the rekey had finished</span></p>
+    <p class="hero-gloss">The error handler deleted the only keys that still worked.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>The error that meant it worked</h1>
+
+    <p class="standfirst">Four times across two releases, Vault and AWS
+    reported exactly what had happened and I read the report backwards.
+    None of these were bugs in those systems.</p>
+
+    <p>While writing a script to rotate Vault's recovery keys, I destroyed
+    a set of recovery keys.</p>
+
+    <p>Local cluster, one I tear down several times an hour, so nothing was
+    actually lost. But the script did what it was written to do, the error
+    handling fired correctly, and the keys were gone anyway.</p>
+
+    <p>Recovery keys are the five secrets that, three together, let you mint
+    a root token when every other way in is gone. Re-issuing them is a
+    one-way door: the instant the operation finishes, the old five stop
+    working. If you did not capture the new ones, nobody administers that
+    cluster again.</p>
+
+    <p>Vault has a second phase for exactly this. Ask for verification and
+    the new shares are issued but held back — they do not take effect until
+    you hand a quorum of them in. Mistype one and nothing happens; the old
+    shares are still live and you get to try again.</p>
+
+    <p>You cannot ask for it from the CLI. <code>vault operator rekey</code>
+    has a <code>-verify</code> flag for the handback and nothing to request
+    verification when you start, because <code>require_verification</code>
+    only exists in the API. That is most of why I was scripting the thing
+    rather than typing it.</p>
+
+    <p>So the script fed in the old shares, got the new ones back, and
+    started submitting them for verification, watching for the JSON field
+    that says you are done. It never appeared. Here is what Vault returns
+    on the share that completes verification, when you have asked for
+    <code>-format=json</code>:</p>
+
+    <figure>
+      <pre><code>Rekey verification successful. The rekey operation is complete and the
+new keys are now active.</code></pre>
+    </figure>
+
+    <p>English. No JSON, no <code>complete</code> field, nothing to parse.
+    The loop shrugged and submitted the next share:</p>
+
+    <figure>
+      <pre><code>Code: 400. Errors:
+
+* no rekey configuration found</code></pre>
+    </figure>
+
+    <p>There was no rekey configuration because the rekey had finished.</p>
+
+    <p>My error handler saw a 400, decided verification had failed, printed
+    a reassuring note that the old shares were still the live ones, and
+    threw the new set away. Every part of that was wrong. The old shares
+    were already dead. The new ones were the only keys that would ever open
+    that cluster again, and the failure path deleted them.</p>
+
+    <p>Ten minutes to fix — write the new shares to disk before verification
+    rather than after, and treat the English sentence as a completion
+    signal alongside the JSON one. What stuck with me was that the 400 was
+    <em>correct</em>. Vault answered the question I asked. There genuinely
+    was no rekey configuration. I had just decided in advance what its
+    absence would mean.</p>
+
+    <p class="thesis">Every one of these was a true statement that I
+    understood as its opposite.</p>
+
+    <h2><span class="n">S3 &middot; object lock</span>An absence that means someone was here</h2>
+
+    <p>The same repository ships audit-trail anchors to S3 under Object
+    Lock in <code>COMPLIANCE</code> mode. Nothing can shorten or lift that
+    retention — not the operator, not the account root, not somebody
+    holding the same key the shipper runs with. The point is that the
+    record outlives whoever wants it gone.</p>
+
+    <p>Before building on it I wrote a throwaway script to check that the
+    emulator I test against actually enforced any of this, rather than
+    accepting the configuration and shrugging. That is the only reason I
+    found the next part.</p>
+
+    <div class="table-scroll">
+      <table class="shapes">
+        <thead>
+          <tr><th>Attack</th><th>Object Lock</th><th>What stops it</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>delete version</td><td>Refused</td><td>COMPLIANCE retention</td></tr>
+          <tr><td>overwrite key</td><td>Permitted</td><td>Reading the version written first</td></tr>
+          <tr><td>delete, no version</td><td>Permitted</td><td>An IAM deny, and listing versions</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The third row is the interesting one. A delete without a version id
+    does not remove anything — it writes a delete marker over the key, and
+    the data sits underneath untouched. Object Lock has no reason to refuse
+    that, so it does not.</p>
+
+    <p>The catch is that a marked key disappears from
+    <code>list-objects-v2</code> and 404s on <code>head-object</code>.
+    Those are the two calls you would naturally build a fetch tool on. They
+    are the two I had built mine on. So the credential that ships the
+    evidence can hide all of it without deleting a byte, and the tool you
+    reach for during an incident tells you there is nothing there.</p>
+
+    <div class="agreement">
+      <div>
+        <p class="who">What it said</p>
+        <p class="said">no anchors found</p>
+      </div>
+      <div>
+        <p class="who">What was true</p>
+        <p class="said">intact, one layer down</p>
+      </div>
+    </div>
+    <p class="verdict">and somebody had just tried to delete them</p>
+
+    <p>You would like those two situations to look different. They do not.
+    The tool lists object <em>versions</em> now, reads the anchors out from
+    under the markers, and makes noise about the markers, because a delete
+    attempt on an audit trail is the most interesting thing that will
+    happen all week.</p>
+
+    <h2><span class="n">Vault &middot; health</span>Healthy, and failing every request</h2>
+
+    <p>A Vault node that has lost quorum is still unsealed and still
+    listening. It just cannot agree with anyone about anything, so real
+    requests come back 500.</p>
+
+    <p>Ask it <code>sys/health?standbyok=true</code> and you get a
+    <strong>200</strong>. The AWS target group matches
+    <code>200,429</code>, since 429 is how a healthy standby announces
+    itself. So the node stays in the pool: healthy by every signal the
+    infrastructure collects, serving errors to everything that arrives.</p>
+
+    <p>Again, nothing lied. <code>standbyok=true</code> means "a standby is
+    fine", the node is arguably a standby, and 200 is a defensible answer.
+    The health check is not measuring what its name suggests it measures.
+    What catches this is an alert on <code>sum(vault_core_active) &lt; 1</code>,
+    which counts leaders instead of asking nodes how they feel.</p>
+
+    <h2><span class="n">Raft &middot; autopilot</span>Two of three healthy, and no quorum</h2>
+
+    <p>Vault ships Raft autopilot with
+    <code>cleanup_dead_servers = false</code>, and honestly that is the
+    right default. On fixed machines a node that vanishes is usually coming
+    back as itself, and evicting it automatically causes more problems than
+    it solves.</p>
+
+    <p>Both cloud profiles in this repository set the Raft node id to
+    something the machine does not keep — the EC2 instance id, the scale
+    set VM name. Every replacement therefore arrives as a brand new voter,
+    and the one it replaced sits in the configuration forever, dead and
+    still counted.</p>
+
+    <p>Then you run an instance refresh, the most ordinary thing an
+    operator does all month:</p>
+
+    <div class="table-scroll">
+      <table class="shapes">
+        <thead>
+          <tr><th>Step</th><th>Voters</th><th>Quorum needs</th><th>Live</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr><td>start</td><td>A B C</td><td>2</td><td>3</td><td>ok</td></tr>
+          <tr><td>terminate A</td><td>A&#822; B C</td><td>2</td><td>2</td><td>no margin</td></tr>
+          <tr><td>launch A2</td><td>A&#822; B C A2</td><td>3</td><td>3</td><td>no margin</td></tr>
+          <tr><td>terminate B</td><td>A&#822; B&#822; C A2</td><td>3</td><td>2</td><td>quorum lost</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>It goes down partway through the second node, while the console
+    still shows two of three healthy and the rollout progressing normally.
+    <code>min_healthy_percentage = 67</code> cannot help, because the
+    scaling group is counting instances it can see and Raft is counting
+    voters it cannot. Both numbers are accurate. They are counting
+    different things, and only one of them decides whether the cluster
+    serves.</p>
+
+    <p>I found this on a laptop, incidentally. No cloud account and no
+    spend — a local three-node cluster, killing a container, and watching
+    <code>list-peers</code> still show the dead node as a voter a minute
+    later.</p>
+
+    <p>There is a footnote I am slightly embarrassed by. I wrote the fix up
+    before testing it and got the sequence wrong. The replacement actually
+    joins as a <strong>non-voter</strong>, which satisfies the quorum floor
+    on its own; the dead voter is pruned; the replacement is promoted after
+    that. The voter count never reaches four. I only know because the first
+    assertion I wrote encoded my explanation and then failed against a
+    cluster that was working perfectly.</p>
+
+    <h2>What I do differently now</h2>
+
+    <p>These are not test failures. My tests were fine, and in three of the
+    four cases there was no test to be wrong — the mistake was in the model
+    I had of what a correct answer implied. So the habits are different
+    from the ones I would reach for after a bad assertion.</p>
+
+    <h3>Ask what else produces this response</h3>
+
+    <p>Before writing an error branch, work out the full set of conditions
+    that reach it. A 400 from a verification endpoint has at least two
+    causes: verification failed, and verification is over. If a branch
+    cannot distinguish them, it must not act as though it can — and the
+    destructive action in particular belongs somewhere that a wrong guess
+    cannot reach.</p>
+
+    <h3>Prefer signals with one meaning</h3>
+
+    <p>Count leaders, not health checks. List versions, not objects. Every
+    one of these bugs came from a signal that was cheap to obtain and
+    ambiguous by nature, and the fix in every case was a slightly more
+    expensive signal that could only mean one thing.</p>
+
+    <h3>Make the irreversible step last</h3>
+
+    <p>The rekey was survivable the moment the new shares were written to
+    disk before verification instead of after it. Nothing about the
+    misread 400 changed. It just stopped mattering, because by then the
+    only thing the failure path could destroy was a file I already had a
+    copy of.</p>
+
+    <p>That last one is the only general lesson I actually trust from this.
+    You will misread something eventually. Arrange the sequence so that
+    when you do, the thing you cannot get back has already been written
+    down.</p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>The rekey ceremony is in
+    <a href="https://github.com/sethbergman/vault-reference-platform/blob/main/scripts/rotate-keys.sh"><code>scripts/rotate-keys.sh</code></a>
+    and the anchor shipper in
+    <a href="https://github.com/sethbergman/vault-reference-platform/blob/main/scripts/ship-anchors.sh"><code>scripts/ship-anchors.sh</code></a>,
+    both in
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>,
+    with the suites in
+    <a href="https://github.com/sethbergman/vault-reference-platform/tree/main/tests/key-rotation"><code>tests/key-rotation/</code></a>
+    and
+    <a href="https://github.com/sethbergman/vault-reference-platform/tree/main/tests/audit-anchor-worm"><code>tests/audit-anchor-worm/</code></a>.</p>
+    <p>Neither cloud profile in that repository has been applied to a real
+    account. The Object Lock behaviour above was demonstrated against an
+    emulated S3 API, which shows the requests are built and answered the
+    way the design assumes and shows nothing about how the service
+    behaves.</p>
+  </footer>
+
+</article>
+</body>
+</html>
