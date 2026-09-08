@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checking it worked is what broke it</title>
+<meta name="description" content="Migrating a Vault cluster between seal types has a window of a few seconds in which every obvious way to confirm it worked will undo it — including restarting a node to see whether auto-unseal engages.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/checking-it-worked-is-what-broke-it/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Checking it worked is what broke it">
+<meta property="og:description" content="Migrating a Vault cluster between seal types has a window of a few seconds in which every obvious way to confirm it worked will undo it — including restarting a node to see whether auto-unseal engages.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/checking-it-worked-is-what-broke-it/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Checking it worked is what broke it">
+<meta name="twitter:description" content="Migrating a Vault cluster between seal types has a window of a few seconds in which every obvious way to confirm it worked will undo it — including restarting a node to see whether auto-unseal engages.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Operations &middot; Seal migration</p>
+    <p class="hero-log">Seal Type transit <span class="flag">&mdash; and it will not unseal itself</span></p>
+    <p class="hero-gloss">The cluster reports the new seal before it commits to it.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>Checking it worked is what broke it</h1>
+
+    <p class="standfirst">Migrating a Vault cluster between seal types has
+    a window a few seconds long in which every obvious way to confirm it
+    worked will undo it.</p>
+
+    <p>I had just moved a three-node cluster from Shamir back to Transit
+    auto-unseal. All three nodes reported <code>transit</code>. All three
+    were unsealed. The data was there.</p>
+
+    <p>What I wanted to know was whether auto-unseal actually
+    <em>worked</em> — as opposed to being configured, which is a different
+    claim and the one that had just become true. So I did the obvious
+    thing: restarted a node and watched to see whether it came back on
+    its own.</p>
+
+    <p>It came back sealed.</p>
+
+    <p>That is the correct symptom of a broken seal stanza, an expired
+    Transit token, or an unreachable unseal service. I checked all three.
+    They were fine. The node was refusing to do the thing its
+    configuration plainly told it to do, and the reason was in the log,
+    which is the only place it appears:</p>
+
+    <figure>
+      <pre><code>[WARN] core: entering seal migration mode; Vault will not automatically
+unseal even if using an autoseal</code></pre>
+    </figure>
+
+    <p>The migration had not finished. Not because anything failed — it
+    finishes on its own, and quickly — but because I restarted a node
+    during the seconds that takes, and a node restarted inside that
+    window re-enters migration mode. In migration mode Vault will not
+    auto-unseal, deliberately, even when it can.</p>
+
+    <p class="thesis">The check produced the failure it was checking
+    for.</p>
+
+    <p>And it produced it in the shape of a different and much worse
+    problem: a node that looks like it has a broken seal configuration,
+    when what it has is a correct one and bad timing.</p>
+
+    <h2><span class="n">The sequence</span>Four steps, three of them surprising</h2>
+
+    <p>Changing seal type means telling every node about the new seal,
+    restarting them, and unsealing each one with <code>-migrate</code>.
+    Written out:</p>
+
+    <ol>
+      <li>Set the seal stanza on <strong>every</strong> node.</li>
+      <li>Restart <strong>every</strong> node. They come up sealed,
+      already reporting the new type.</li>
+      <li>Unseal every node with
+      <code>vault operator unseal -migrate</code>.</li>
+      <li>Wait for a leader to finalise it.</li>
+    </ol>
+
+    <p>I guessed wrong on three of those four before running it.</p>
+
+    <h3>Do not stop the standbys</h3>
+
+    <p>The instinct, for any operation this dangerous, is to reduce the
+    number of moving parts: take the standbys down, do the delicate thing
+    on one node, bring them back.</p>
+
+    <p>On three nodes that leaves one, which is not a quorum. No leader
+    is elected, and finalising the migration is something a leader does.
+    My first attempt produced a cluster that was unsealed, leaderless and
+    permanently half-migrated — worse than any state I was trying to
+    avoid.</p>
+
+    <h3>Every node needs <code>-migrate</code>, not just the active one</h3>
+
+    <p>Submitting an ordinary unseal key to a standby gets you:</p>
+
+    <figure>
+      <pre><code>Code: 500. Errors:
+
+* migrate option not provided and seal migration is in progress</code></pre>
+    </figure>
+
+    <p>A 500, which reads as a server fault, for a node correctly
+    reporting that it is in the middle of doing what you asked.</p>
+
+    <h3>It is not over when the last node unseals</h3>
+
+    <p>This is the one that makes the restart destructive. Every node is
+    unsealed, every node reports the new seal type, and the migration is
+    still in progress:</p>
+
+    <div class="agreement">
+      <div>
+        <p class="who">vault status</p>
+        <p class="said">Seal Type   transit
+Sealed      false</p>
+      </div>
+      <div>
+        <p class="who">sys/seal-status</p>
+        <p class="said">"migration": true</p>
+      </div>
+    </div>
+    <p class="verdict">both true, one of them the whole answer</p>
+
+    <p>The flag clears when a leader finalises the migration, which on a
+    healthy cluster takes seconds. It is a small window. It is also
+    exactly the window you are in at the moment you finish the last
+    unseal and go looking for confirmation that it worked.</p>
+
+    <h2><span class="n">The fix</span>Poll the state, don't infer it</h2>
+
+    <p>The class of mistake is reading something that is true now and
+    will be true differently in a moment, then acting on it. The seal
+    type is that kind of state. So is "every node is unsealed".</p>
+
+    <p><code>sys/seal-status</code> answers the actual question:</p>
+
+    <figure>
+      <pre><code>curl -s "$VAULT_ADDR/v1/sys/seal-status" | jq -r '.migration'</code></pre>
+    </figure>
+
+    <p>Wait for <code>false</code> before doing anything else — before
+    restarting a node, before closing the maintenance window, before
+    running the check that tells you it worked.</p>
+
+    <p>There is a second-order version of the same problem, because it
+    bit me straight afterwards. Having written a script that migrates a
+    cluster, I pointed it at one that was already half-migrated — the
+    state my first attempt had produced — and it refused:</p>
+
+    <figure>
+      <pre><code>ERROR: already on transit; nothing to migrate</code></pre>
+    </figure>
+
+    <p>It read the seal type, saw the target, and concluded there was
+    nothing to do. The nodes reported <code>transit</code> because they
+    were halfway there, not because they had arrived. A tool that
+    performs a dangerous operation should expect to meet clusters in the
+    middle of that operation, since that is exactly when someone reaches
+    for it. It resumes now rather than refusing.</p>
+
+    <h2><span class="n">Postscript</span>My own contribution</h2>
+
+    <p>The wait I wrote for that flag could not succeed. It read it like
+    this:</p>
+
+    <figure>
+      <pre><code>jq -r '.migration // empty'</code></pre>
+    </figure>
+
+    <p>jq's <code>//</code> treats <code>false</code> the same as absent,
+    so a <em>finished</em> migration returned an empty string and the loop
+    never matched. It timed out after three minutes against a cluster
+    that had finalised in about six seconds.</p>
+
+    <p>A wait that cannot terminate and a check that cannot fail are the
+    same bug in different clothes, and I have now written both in the
+    same repository.</p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>The script is
+    <a href="https://github.com/sethbergman/vault-reference-platform/blob/main/scripts/migrate-seal.sh"><code>scripts/migrate-seal.sh</code></a>,
+    and the suite that migrates a real three-node cluster in both
+    directions is
+    <a href="https://github.com/sethbergman/vault-reference-platform/tree/main/tests/seal-migration"><code>tests/seal-migration/</code></a>,
+    in
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>.</p>
+    <p>Covered between Transit and Shamir only. Migrating between two
+    cloud KMS providers — the case where an organisation changes cloud —
+    has the same shape and no coverage, and neither cloud profile in that
+    repository has been applied to a real account.</p>
+  </footer>
+
+</article>
+</body>
+</html>
