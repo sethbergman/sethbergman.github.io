@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A plan that succeeds is not a system that works</title>
+<meta name="description" content="Every check proves something narrower than its color suggests. Lessons from building a Vault platform in public: the failure only a real cloud apply could find, restores that look healthy and did nothing, and CI that broke with no code change.">
+<meta name="author" content="Seth Bergman">
+<link rel="canonical" href="https://sethbergman.github.io/posts/a-plan-that-succeeds/">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="A plan that succeeds is not a system that works">
+<meta property="og:description" content="Every check proves something narrower than its color suggests. Lessons from building a Vault platform in public: the failure only a real cloud apply could find, restores that look healthy and did nothing, and CI that broke with no code change.">
+<meta property="og:url" content="https://sethbergman.github.io/posts/a-plan-that-succeeds/">
+<meta property="og:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="A plan that succeeds is not a system that works">
+<meta name="twitter:description" content="Every check proves something narrower than its color suggests. Lessons from building a Vault platform in public: the failure only a real cloud apply could find, restores that look healthy and did nothing, and CI that broke with no code change.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/sethbergman/vault-reference-platform/main/docs/images/banner.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:   #F5F6F1;
+    --raised:   #ECEEE6;
+    --ink:      #141915;
+    --muted:    #5D6A61;
+    --rule:     #DCE0D6;
+    --pass:     #15754A;
+    --flag:     #A2401C;
+    --code-bg:  #EAEDE4;
+
+    --serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --mono:  "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --measure: 34rem;
+    --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+    --step-0:  clamp(1.06rem, 1.01rem + 0.24vw, 1.2rem);
+    --step-1:  clamp(1.3rem, 1.2rem + 0.5vw, 1.6rem);
+    --step-2:  clamp(1.7rem, 1.45rem + 1.1vw, 2.4rem);
+    --step-3:  clamp(2.2rem, 1.7rem + 2.3vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:  #101310;
+      --raised:  #171B16;
+      --ink:     #E6EAE1;
+      --muted:   #93A096;
+      --rule:    #262C25;
+      --pass:    #4FBE86;
+      --flag:    #E0774B;
+      --code-bg: #171B16;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:  #101310;
+    --raised:  #171B16;
+    --ink:     #E6EAE1;
+    --muted:   #93A096;
+    --rule:    #262C25;
+    --pass:    #4FBE86;
+    --flag:    #E0774B;
+    --code-bg: #171B16;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--step-0);
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(2rem, 6vw, 5.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: var(--measure);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    border-left: 2px solid var(--pass);
+    padding-left: clamp(1rem, 4vw, 1.75rem);
+  }
+
+  .hero-log {
+    font-family: var(--mono);
+    font-size: var(--step-1);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--pass);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .hero-log .flag { color: var(--flag); }
+
+  .hero-gloss {
+    font-size: var(--step-0);
+    color: var(--muted);
+    margin: 0;
+    font-style: italic;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--step-3);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-size: var(--step-1);
+    line-height: 1.45;
+    color: var(--muted);
+    text-wrap: balance;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .prose { display: flex; flex-direction: column; gap: 1.15rem; }
+
+  .prose > h2 {
+    font-family: var(--serif);
+    font-size: var(--step-2);
+    font-weight: 600;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 2.4rem 0 0;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  .prose > h2 .n {
+    font-family: var(--mono);
+    font-size: 0.5em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--flag);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose > h3 {
+    font-family: var(--mono);
+    font-size: var(--step-0);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 1.4rem 0 0;
+    color: var(--ink);
+  }
+
+  .prose > p { margin: 0; }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--pass);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+  }
+  a:focus-visible {
+    outline: 2px solid var(--pass);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    padding: 0.1em 0.34em;
+    border-radius: 3px;
+  }
+
+  figure { margin: 0.5rem 0; }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: var(--step--1);
+    line-height: 1.62;
+    display: block;
+    white-space: pre;
+  }
+
+  .agreement {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 0.75rem 0;
+  }
+
+  @media (max-width: 34rem) {
+    .agreement { grid-template-columns: 1fr; }
+  }
+
+  .agreement > div {
+    background: var(--raised);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .agreement .who {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .agreement .said {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink);
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .verdict {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--flag);
+    text-align: center;
+    margin: 0;
+  }
+
+  .thesis {
+    font-size: var(--step-1);
+    line-height: 1.4;
+    font-weight: 500;
+    text-wrap: balance;
+    color: var(--ink);
+    border-left: 2px solid var(--flag);
+    padding: 0.3rem 0 0.3rem clamp(1rem, 4vw, 1.6rem);
+    margin: 1.2rem 0;
+  }
+
+  .shapes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    margin: 0.75rem 0;
+  }
+
+  .table-scroll { overflow-x: auto; }
+
+  .shapes th, .shapes td {
+    text-align: left;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  .shapes thead th {
+    font-family: var(--mono);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  .shapes tbody td:first-child {
+    font-family: var(--mono);
+    color: var(--flag);
+    white-space: nowrap;
+  }
+
+  .colophon {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.4rem;
+    margin-top: 2.5rem;
+    font-size: var(--step--1);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .colophon p { margin: 0; }
+</style>
+<style>
+  /* Standalone page: the artifact host supplied a reset, a plain browser
+     does not. Only what the stylesheet above does not already set. */
+  table { border-collapse: collapse; }
+  img { max-width: 100%; height: auto; }
+  .backlink {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+  }
+  .backlink:hover { color: var(--pass); }
+</style>
+</head>
+<body>
+<a class="backlink" href="/">&larr; Seth Bergman</a>
+
+<article class="page">
+
+  <header class="hero">
+    <p class="eyebrow">Infrastructure &middot; Terraform</p>
+    <p class="hero-log">Apply complete! <span class="flag">&middot; replacement never joined</span></p>
+    <p class="hero-gloss">Every test was green. The cluster could not heal.</p>
+  </header>
+
+  <div class="prose">
+
+    <h1>A plan that succeeds is not a system that works</h1>
+
+    <p class="standfirst">Every check proves something narrower than its
+    color suggests. The useful habit is writing down what each one proves,
+    and spending money only on the part nothing cheaper can reach.</p>
+
+    <p>I have spent the last few months building a production-shaped
+    HashiCorp Vault platform in public: a three-node Raft cluster,
+    KMS auto-unseal, Terraform for AWS and Azure, Ansible for
+    configuration, and around forty CI jobs. These are the lessons from it
+    I would most want another infrastructure engineer to take away.</p>
+
+    <h2>Layers, cheapest first</h2>
+
+    <p>The repository tests at four levels, each catching what the one
+    below it cannot:</p>
+
+    <ul>
+      <li><strong>Mocked <code>terraform test</code></strong> proves the
+      configuration is well-formed. It caught a Key Vault name over Azure's
+      24-character limit before anyone paid for an apply.</li>
+      <li><strong>An emulated apply</strong> runs a real
+      <code>terraform apply</code> of the AWS profile against moto on every
+      PR. It proves the config applies in one pass and every reference
+      resolves.</li>
+      <li><strong>A local three-node cluster</strong> runs 80 assertions,
+      plus drills for restore, seal migration, key rotation and quorum
+      loss.</li>
+      <li><strong>Real cloud applies</strong>, budgeted and written up,
+      for the questions only a running system can answer.</li>
+    </ul>
+
+    <p>An emulator implements the API, not the service. Nothing boots, no
+    health check runs, no scaling group replaces anything, and KMS returns
+    plausible answers without doing cryptography.</p>
+
+    <h2>The failure only a real apply could find</h2>
+
+    <p>The first real AWS apply took about two hours in a sandbox account
+    and cost under a dollar. Everything upstream was green. It found ten
+    defects, five of them before Vault had started at all.</p>
+
+    <p>The one that mattered was the reason for the whole architecture. I
+    terminated the leader. A new leader was elected in seconds, the load
+    balancer dropped the dead target, and the autoscaling group launched a
+    replacement inside 75 seconds. Then the replacement exited with
+    <code>error loading TLS cert</code> and never became a Vault node.</p>
+
+    <p>Its certificate only ever arrived through an Ansible run, and was
+    named after an instance id that did not exist until after launch.
+    Nothing in the automated path could issue one.</p>
+
+    <p class="thesis">The cluster survived losing a node. It could not
+    replace one.</p>
+
+    <p>The fix was to let a replacement node sign its own certificate. The
+    second apply, a week later, watched it auto-unseal and join Raft with
+    nobody touching it. Azure's first apply was harder: nineteen fixes, and
+    not one was reachable by the mocked tests or the emulator. Most shared
+    a shape. A policy says <em>who</em>, a firewall says <em>from
+    where</em>, and both have to allow it.</p>
+
+    <h2>A restore that did nothing still looks healthy</h2>
+
+    <p>The disaster-recovery drill seeds a canary secret, takes a Raft
+    snapshot, destroys the node and its storage, and restores into a fresh
+    one. Checking that the new cluster is unsealed and healthy proves
+    nothing, because a restore that silently failed leaves exactly that.</p>
+
+    <p>So the drill reads the canary back using the <em>original</em> root
+    token, and checks that the fresh node's own token stops working. That
+    token flip is what distinguishes a restore from a cluster that came up
+    empty.</p>
+
+    <p>The drill also deliberately leaves the unseal key alone. A snapshot
+    of an auto-unsealed Vault is encrypted under that key, so the snapshot
+    is only half a backup. In the cloud, the KMS key has to survive, and be
+    backed up, independently of everything else.</p>
+
+    <h2>Fail closed when the control plane is gone</h2>
+
+    <p>Vault's database engine issues a fresh Postgres user per consumer,
+    with an hour's lease. The detail that matters is one clause in the
+    creation statement: <code>VALID UNTIL '{{expiration}}'</code>. It puts
+    the deadline on the database role itself, so if Vault is unreachable
+    when the lease expires, Postgres still ends the credential on
+    schedule.</p>
+
+    <p>MySQL has no equivalent, so on that engine Vault's revocation is the
+    only thing that ends a credential. The tests assert the difference
+    rather than smoothing it over.</p>
+
+    <h2>CI can break with no code change</h2>
+
+    <p>A documentation-only pull request failed ShellCheck this week, on a
+    script it never touched. A <code>cleanup()</code> function that runs
+    only through <code>trap</code> had its warning suppressed as SC2317.
+    ShellCheck 0.11 moved "function is never invoked" into a new code,
+    SC2329, and the old directive stopped covering it. The main branch was
+    already broken; it just had not run yet.</p>
+
+    <figure>
+      <pre><code># shellcheck disable=SC2317,SC2329  # invoked through the trap below</code></pre>
+    </figure>
+
+    <p>Naming both codes keeps the line passing on the old version and the
+    new one, so the fix does not depend on which ShellCheck the runner
+    happens to install.</p>
+
+    <h2>The general shape</h2>
+
+    <p>Each of these is the same lesson from a different side. A green
+    result answers a narrower question than it appears to, and the gap
+    between the question asked and the one that matters is where outages
+    live.</p>
+
+    <p>So the project keeps a written record of what every check settles
+    and what it does not, including the gap it has not closed: no identity
+    narrower than an administrator has driven a real apply yet. Saying that
+    plainly is worth more than another green badge. <strong>Know what your
+    checks cannot see, and decide on purpose which of those gaps you will
+    pay to close.</strong></p>
+
+  </div>
+
+  <footer class="colophon">
+    <p>Everything described here is in
+    <a href="https://github.com/sethbergman/vault-reference-platform">sethbergman/vault-reference-platform</a>,
+    with each real apply written up in
+    <a href="https://github.com/sethbergman/vault-reference-platform/blob/main/docs/cloud-apply.md"><code>docs/cloud-apply.md</code></a>
+    and the remaining gaps in
+    <a href="https://github.com/sethbergman/vault-reference-platform/blob/main/docs/roadmap.md"><code>docs/roadmap.md</code></a>.</p>
+  </footer>
+
+</article>
+</body>
+</html>
